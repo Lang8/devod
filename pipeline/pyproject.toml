@@ -1,0 +1,26 @@
+[project]
+name = "deutsch-pipeline"
+version = "0.1.0"
+description = "Offline ingest pipeline (spaCy analysis, resolution, enrichment). Not a dependency of the API server."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "spacy==3.8.7",
+  "de-core-news-md",
+  "click>=8.5.1",
+  "sqlalchemy>=2.0,<2.1",
+  "psycopg[binary]>=3.2,<4",
+  "alembic>=1.13,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pgserver>=0.1.4",
+    "pytest>=8",
+]
+
+[tool.uv.sources]
+de-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_md-3.8.0/de_core_news_md-3.8.0-py3-none-any.whl" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "../backend"]

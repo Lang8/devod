@@ -1,0 +1,9 @@
+{
+  "model_version": "fixture-recorded",
+  "title": "Müll trennen im Alltag",
+  "sentences": [
+    {"de": "Wir trennen den Müll jeden Tag.", "ko": "우리는 매일 쓰레기를 분리한다."},
+    {"de": "Plastik gehört in die gelbe Tonne.", "ko": "플라스틱은 노란 통에 넣어야 한다."},
+    {"de": "Die Umwelt braucht saubere Luft und sauberes Wasser.", "ko": "환경은 깨끗한 공기와 깨끗한 물이 필요하다."}
+  ]
+}
