@@ -7,7 +7,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import quiz, settings
+from app import observability, quiz, settings
 from app.deps import current_user, get_session
 from app.models import Discovery, Passage, QuizAttempt, Sentence, Token, Topic, User, Word
 from app.security import create_token, hash_password, verify_password
@@ -290,6 +290,7 @@ def quiz_answer(body: QuizAnswerIn, user: User = Depends(current_user),
 
 
 def create_app() -> FastAPI:
+    observability.init_sentry(settings.sentry_dsn())
     app = FastAPI(title="Deutsch Trainer API")
     origins = settings.cors_origins()
     if origins:

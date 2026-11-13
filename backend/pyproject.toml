@@ -10,6 +10,7 @@ dependencies = [
   "pyjwt>=2.8",
   "bcrypt>=4.1",
   "uvicorn>=0.30",
+  "sentry-sdk[fastapi]>=2.0",
 ]
 
 [dependency-groups]

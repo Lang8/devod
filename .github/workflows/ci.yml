@@ -78,8 +78,16 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      - name: Playwright E2E
+      - name: Seed test account for the production smoke spec
+        run: |
+          curl -sf --max-time 30 -X POST http://localhost:8000/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"email":"prod-smoke@example.com","password":"smoke-test-pass-1"}'
+      - name: Playwright E2E (local flow + production smoke spec against local stack)
         working-directory: frontend
+        env:
+          PROD_E2E_EMAIL: prod-smoke@example.com
+          PROD_E2E_PASSWORD: smoke-test-pass-1
         run: npx playwright test
       - if: failure()
         run: cat api.log

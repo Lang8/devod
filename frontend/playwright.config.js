@@ -9,10 +9,13 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: { baseURL: WEB, trace: "retain-on-failure" },
   // The API (migrated Postgres + seeded content) is started by the caller / CI job.
-  webServer: {
-    command: "npm run build && npx vite preview --port 4173 --strictPort",
-    url: WEB,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // Only start the local preview when not pointed at an already-running (e.g. production) frontend.
+  webServer: process.env.E2E_WEB_URL
+    ? undefined
+    : {
+        command: "npm run build && npx vite preview --port 4173 --strictPort",
+        url: WEB,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });
