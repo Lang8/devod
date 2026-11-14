@@ -10,7 +10,7 @@ from deutsch_pipeline.http import HttpClient
 from deutsch_pipeline.ingest_source import SENTENCE_BUDGET, IngestError, build_passage, excerpt, ingest_source
 from deutsch_pipeline.sources import SourceText
 
-from .test_ingest_source import FakeLLM, Transport
+from .ingest_fakes import FakeLLM, Transport
 
 
 def para(prefix, n):
@@ -33,14 +33,25 @@ def test_budget_per_level_and_paragraph_boundary(level, budget):
     assert got[0].startswith("P1")
 
 
-def test_single_long_paragraph_cut_at_budget():
-    got = excerpt([para("L", 30)], 6)
-    assert len(got) == 6
+def test_paragraph_is_never_split():
+    # A paragraph that would overshoot is not taken once the excerpt is acceptable...
+    got = excerpt([para("A", 5), para("B", 4)], 6)
+    assert got == excerpt([para("A", 5)], 6) and len(got) == 5
+    # ...and a long first paragraph is taken whole, never cut at a sentence.
+    assert len(excerpt([para("L", 30)], 6)) == 30
+
+
+def test_long_paragraph_rejected_for_verbatim_but_usable_for_adaptation():
+    long_source = source([para("L", 30)], label="A2")
+    with pytest.raises(IngestError, match="paragraph-aligned"):
+        build_passage(long_source, "A2", FakeLLM("A2"))
+    gen, _, adapted = build_passage(source([para("L", 30)], label="C1"), "A2", FakeLLM("A1"))
+    assert adapted is True and len(gen.sentences) == SENTENCE_BUDGET["A2"]
 
 
 def test_verbatim_when_source_at_or_below_target():
     for label in ("A1", "A2"):
-        gen, src_level, adapted = build_passage(source([para("P", 8)], label=label), "A2", FakeLLM("C2"))
+        gen, src_level, adapted = build_passage(source([para("P", 3), para("Q", 3)], label=label), "A2", FakeLLM("C2"))
         assert adapted is False and src_level == label
         assert gen.sentences[0][0].startswith("P Satz 1")
 
@@ -69,9 +80,9 @@ def test_label_used_when_present_else_estimator():
     assert lvl == "A1"  # estimated
 
 
-def test_adapted_cc_by_sa_stays_cc_by_sa_and_section(session):
+def test_section_start_verbatim_keeps_cc_by_sa(session):
     nlp = load_nlp()
-    text = "Intro.\n\n== Geschichte ==\n\n" + para("G", 4) + "\n\n" + para("H", 4) + "\n\n== Ende ==\n\nSchluss."
+    text = "Intro.\n\n== Geschichte ==\n\n" + para("G", 3) + "\n\n" + para("H", 3) + "\n\n== Ende ==\n\nSchluss."
     body = json.dumps({"query": {"pages": [{"title": "X", "extract": text}]}})
     res = ingest_source(session, kind="wikipedia", ref="X", topic="t", level="A2", section="Geschichte",
                         client=HttpClient(transport=Transport([(200, body)]), sleep=lambda s: None),

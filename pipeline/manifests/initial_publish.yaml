@@ -9,7 +9,7 @@
 - {kind: wikipedia, ref: "Berlin", topic: reisen, level: B1}
 - {kind: wikipedia, ref: "Klimawandel", topic: umwelt, level: B2}
 - {kind: wikipedia, ref: "Arbeitsmarkt", topic: arbeit, level: B2}
-- {kind: gutenberg, ref: "2591", topic: reisen, level: C1}
+- {kind: gutenberg, ref: "24249", topic: reisen, level: C1}  # Heine, Die Harzreise (German)
 - {kind: wikipedia, ref: "Globalisierung", topic: arbeit, level: C1}
 - {kind: gutenberg, ref: "22367", topic: arbeit, level: C2}
 - {kind: gutenberg, ref: "2407", topic: reisen, level: C2}

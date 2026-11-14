@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import App from "./App.jsx";
+import App from "../App.jsx";
 
 const base = {
   id: 5, topic_id: 1, title: "Berlin", level: "A2",

@@ -56,3 +56,10 @@ def session(migrated_url):
     with Session(engine) as s:
         yield s
     engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def nlp():
+    from deutsch_pipeline.analyze import load_nlp
+
+    return load_nlp()

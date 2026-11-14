@@ -13,7 +13,7 @@ from app.models import Passage
 
 from .generate import GeneratedPassage
 from .http import HttpClient
-from .sources import ADAPTERS, RESTRICTED, SourceError, SourceText, is_local_db_url
+from .sources import ADAPTERS, RESTRICTED, SourceText, is_local_db_url
 from .store import get_or_create_topic, store_passage
 
 LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
@@ -49,19 +49,20 @@ def split_sentences(paragraph: str) -> list[str]:
 
 
 def excerpt(paragraphs: list[str], budget: int) -> list[str]:
-    """Deterministic cut from the start: whole paragraphs while they fit within budget+1
-    sentences; a paragraph that overshoots is cut at a sentence only if more are needed."""
+    """Deterministic cut from the start that always ends at a paragraph boundary.
+
+    Whole paragraphs are taken in order and never split. Taking stops once the budget is
+    reached, or once the excerpt is already acceptable (>= budget-1 sentences) and the next
+    paragraph would push it past budget+1. The result can exceed budget+1 only when one
+    paragraph is needed to reach budget-1; callers reject that for verbatim storage."""
     taken: list[str] = []
     for para in paragraphs:
         sents = split_sentences(para)
         if not sents:
             continue
-        if len(taken) + len(sents) <= budget + 1:
-            taken += sents
-        else:
-            if len(taken) < budget - 1:
-                taken += sents[: budget - len(taken)]
+        if len(taken) >= budget - 1 and len(taken) + len(sents) > budget + 1:
             break
+        taken += sents
         if len(taken) >= budget:
             break
     return taken
@@ -107,6 +108,12 @@ def build_passage(source: SourceText, level: str, llm: IngestLLM) -> tuple[Gener
     if source_level not in LEVELS:
         raise IngestError(f"level estimator returned {source_level!r}")
     adapted = LEVELS.index(source_level) > LEVELS.index(level)  # never adapt upward
+    if not adapted and len(sents) > budget + 1:
+        # Verbatim text is never cut inside a paragraph, so a paragraph too long for the
+        # budget cannot be stored as-is. (Adaptations use it only as LLM input; their
+        # output length is validated separately.)
+        raise IngestError(f"no paragraph-aligned excerpt fits {budget}+/-1 sentences for verbatim "
+                          f"storage at {level} (first paragraphs give {len(sents)})")
 
     if adapted:
         def attempt():
