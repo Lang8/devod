@@ -2,4 +2,4 @@
 
 lint = "uv run --project backend ruff check backend"
 build = "npm --prefix frontend run build"
-test = "uv run --project backend pytest"
+test = "uv run --directory backend pytest"
