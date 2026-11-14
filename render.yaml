@@ -5,10 +5,14 @@ services:
     dockerContext: backend
     dockerfilePath: backend/Dockerfile
     healthCheckPath: /healthz
+    # GitHub Actions (deploy.yml) is the only deploy path for main: no Git auto-deploy.
+    autoDeploy: false
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGINS
+        sync: false
+      - key: SENTRY_DSN
         sync: false
