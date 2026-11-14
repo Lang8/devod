@@ -43,6 +43,13 @@ class Passage(Base):
     level: Mapped[str] = mapped_column(String(2))
     source: Mapped[str] = mapped_column(String(20), default="llm", server_default="llm")
     model_version: Mapped[str | None] = mapped_column(String(100))
+    source_url: Mapped[str | None] = mapped_column(String(500), index=True)
+    source_title: Mapped[str | None] = mapped_column(String(300))
+    author: Mapped[str | None] = mapped_column(String(300))
+    license: Mapped[str] = mapped_column(String(50), server_default="llm-generated")
+    license_tier: Mapped[str] = mapped_column(String(12), server_default="open")
+    source_level: Mapped[str | None] = mapped_column(String(2))
+    adapted: Mapped[bool] = mapped_column(Boolean, server_default="false")
     generated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

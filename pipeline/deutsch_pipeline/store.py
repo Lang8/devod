@@ -29,9 +29,11 @@ def get_or_create_topic(session: Session, slug: str, level: str, name_de: str | 
     return topic
 
 
-def store_passage(session: Session, topic: Topic, level: str, generated: GeneratedPassage, nlp) -> Passage:
+def store_passage(session: Session, topic: Topic, level: str, generated: GeneratedPassage, nlp,
+                  provenance: dict | None = None) -> Passage:
+    fields = {"source": "llm", **(provenance or {})}
     passage = Passage(topic_id=topic.id, title=generated.title, level=level,
-                      source="llm", model_version=generated.model_version)
+                      model_version=generated.model_version, **fields)
     session.add(passage)
     session.flush()
     for pos, (de, ko) in enumerate(generated.sentences):

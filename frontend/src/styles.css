@@ -9,3 +9,5 @@ input, button { font-size: 1rem; padding: .4rem; }
 
 button.word { background: none; border: 0; padding: 0 2px; font: inherit; cursor: pointer; }
 button.word:hover, button.word.collected { background: #fff3b0; }
+
+.attribution { color: #555; font-size: .85rem; margin-top: 1.5rem; }

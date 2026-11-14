@@ -129,12 +129,18 @@ def list_topics(session: Session = Depends(get_session)):
             for t in rows]
 
 
+def _attribution(p: Passage) -> dict:
+    return {"source_title": p.source_title, "author": p.author, "source_url": p.source_url,
+            "license": p.license, "adapted": bool(p.adapted)}
+
+
 @api.get("/topics/{topic_id}/passages")
 def list_topic_passages(topic_id: int, session: Session = Depends(get_session)):
     if session.get(Topic, topic_id) is None:
         raise HTTPException(404, "Topic not found")
     rows = session.scalars(select(Passage).where(Passage.topic_id == topic_id).order_by(Passage.id))
-    return [{"id": p.id, "topic_id": p.topic_id, "title": p.title, "level": p.level} for p in rows]
+    return [{"id": p.id, "topic_id": p.topic_id, "title": p.title, "level": p.level,
+             **_attribution(p)} for p in rows]
 
 
 @api.get("/passages/{passage_id}")
@@ -149,6 +155,7 @@ def get_passage(passage_id: int, session: Session = Depends(get_session)):
     for t in session.scalars(select(Token).where(Token.sentence_id.in_(list(tokens))).order_by(Token.position)):
         tokens[t.sentence_id].append(t)
     return {"id": p.id, "topic_id": p.topic_id, "title": p.title, "level": p.level,
+            **_attribution(p),
             "sentences": [{"id": s.id, "position": s.position, "text_de": s.text_de, "text_ko": s.text_ko,
                            "tokens": [{"id": t.id, "position": t.position, "surface": t.surface,
                                        "word_id": t.word_id} for t in tokens[s.id]]}
