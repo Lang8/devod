@@ -1,0 +1,337 @@
+goal: 'Make the existing Deutsch Trainer MVP (FastAPI backend, React/Vite SPA, managed
+  Postgres, offline Claude/spaCy content pipeline) production-ready. It should run
+  for real on free tiers: Render for the backend, Vercel for the frontend and Neon
+  for Postgres. A push to main deploys automatically through a GitHub Actions flow:
+  the CI gate passes, the deploy is triggered, automated smoke checks run, then a
+  production Playwright E2E runs, and the app rolls back automatically if a check
+  fails. Add Sentry error tracking and uptime monitoring, a safe `deutsch_pipeline
+  delete --topic` command, and a runbook for setup, backup/restore and rollback.'
+task_type: code
+brownfield_context:
+  project_type: brownfield
+  context_references:
+  - path: C:\projects\devod
+    role: primary
+    summary: 'Deutsch Trainer MVP repo: FastAPI backend, React/Vite SPA, deutsch_pipeline
+      content pipeline'
+  - path: deutsch-trainer.seed.yaml
+    role: reference
+    summary: Original MVP seed specification
+  - path: render.yaml
+    role: reference
+    summary: Existing Render backend service definition
+  - path: frontend/vercel.json
+    role: reference
+    summary: Existing Vercel frontend config
+  - path: backend/docker-entrypoint.sh
+    role: reference
+    summary: Runs alembic upgrade head at container start
+  - path: backend/app/models.py
+    role: reference
+    summary: ORM models; Discovery has FKs to sentence/passage/token/phrase/word without
+      ondelete
+  - path: backend/app/main.py
+    role: reference
+    summary: API; Discovery is created only on word click (around line 167); no Discovery
+      delete endpoint
+  - path: frontend/e2e/flow.spec.js
+    role: reference
+    summary: 'Existing Playwright flow: signup on every run, then a word click'
+  - path: .github/workflows/ci.yml
+    role: reference
+    summary: Existing CI (backend, frontend, e2e, deploy-readiness jobs) with Postgres
+      service containers
+  existing_patterns:
+  - Pipeline CLI invoked as python -m deutsch_pipeline <command> --topic ... --database-url
+    <url>
+  - Alembic migrations applied automatically at container start through docker-entrypoint.sh
+  - Shared content area (passage/sentence/token/phrase/word/WordTopic) separate from
+    the user area (Discovery/LearningState/QuizAttempt)
+  - Playwright E2E specs under frontend/e2e
+  - Infra-as-config through render.yaml and vercel.json
+  - /healthz health endpoint
+  existing_dependencies:
+  - FastAPI
+  - SQLAlchemy/Alembic
+  - PostgreSQL (Neon)
+  - React
+  - Vite
+  - Playwright
+  - spaCy
+  - Anthropic Claude API (offline pipeline)
+  - GitHub Actions
+  - Render
+  - Vercel
+  - Sentry SDKs (backend and frontend)
+constraints:
+- 'Brownfield: build on the existing render.yaml, frontend/vercel.json, backend/docker-entrypoint.sh,
+  backend/app/models.py, the deutsch_pipeline package and frontend/e2e/flow.spec.js
+  (see deutsch-trainer.seed.yaml)'
+- 'Monthly cost is $0: everything stays on free tiers (Render free web service with
+  cold starts accepted, Neon free Postgres, Vercel/Sentry/uptime monitor free tiers)'
+- Postgres is fixed to Neon, and migrations use the direct (non-pooled) connection
+  URL
+- Users are personal-scale (fewer than 10)
+- 'Deploys are gated on CI: GitHub Actions triggers the Render deploy hook and the
+  Vercel deploy only after CI is green, and Render/Vercel Git auto-deploy is not used
+  for main'
+- DB migrations keep running automatically at container start through the existing
+  docker-entrypoint.sh (alembic upgrade head)
+- 'Automated post-deploy smoke checks that /healthz returns 200 and the frontend loads
+  on the real URLs. Default cold-start tolerance (worker-proposed, adjustable): up
+  to 6 attempts at 30s intervals (about 3 min) before declaring failure'
+- 'Every external HTTP call (deploy hook, Render/Vercel APIs, smoke requests) has
+  an explicit timeout. Default (worker-proposed, adjustable): 30s per request'
+- Production E2E is a separate Playwright spec that only logs in with a fixed test
+  account (no signup), opens a passage and clicks a word
+- The production test account is created once by hand following the runbook, and its
+  email/password are stored in GitHub Secrets
+- Test-account data builds up across E2E runs and is not cleaned per run. It is cleaned
+  only during delete --topic
+- CI must not hold the production DATABASE_URL
+- If the post-deploy smoke or production E2E fails, GitHub Actions automatically rolls
+  Render and Vercel back to the previous healthy deploy through their APIs, using
+  API tokens stored in GitHub Secrets
+- Rollback attempts Render and Vercel independently. If one rollback fails, the other
+  is still attempted, and the job summary and failure alert report which target rolled
+  back and which did not (partial failure)
+- DB migrations are never downgraded automatically. DB rollback is a manual runbook
+  step (alembic downgrade or pg_dump restore)
+- The content pipeline stays manual and local, loading straight into production Postgres
+  with no review step. There is no scheduler and no CI run of the pipeline
+- delete --topic removes that topic's shared-area data (passage/sentence/token/phrase/WordTopic
+  and similar). Word/Phrase still linked to another topic through a WordTopic is kept
+  and only unlinked. Word/Phrase left orphaned is deleted
+- delete --topic first cleans Discovery/LearningState/QuizAttempt and similar data
+  belonging to the configured production test account. If any other real user data
+  still references the topic, it refuses and deletes nothing
+- delete --topic runs as a single DB transaction (all or nothing, including the test-account
+  cleanup) and is idempotent (rerunning it on an already-deleted topic exits cleanly).
+  By default it is a dry-run that only prints what would be deleted; it changes data
+  only when --yes is passed
+- 'Monitoring covers Render/Vercel default logs, /healthz, Sentry error tracking for
+  both backend and frontend, and uptime alerts. Default uptime check interval (worker-proposed,
+  adjustable): every 5 minutes. Receiving a Sentry test event is a manual runbook
+  check'
+- All Sentry, uptime, rollback and workflow-failure alerts go only to the single owner's
+  email
+- When all required deploy secrets are missing, the deploy, smoke and production E2E
+  jobs detect this, write an explicit warning to the job summary and skip, so CI stays
+  green. A skipped deploy is shown as 'skipped' in the job summary, never as a successful
+  deploy
+- When only some of the required deploy secrets are set (partial configuration), the
+  deploy job fails with a message listing the missing secret names, instead of skipping
+- 'Out of scope: staging environment, custom domain, paid plan upgrades, running the
+  pipeline in CI'
+- Account creation (Render/Vercel/Neon/Sentry/uptime monitor) and entering secrets
+  are manual steps for the user
+acceptance_criteria:
+- description: '`deutsch_pipeline delete --topic` safely removes a topic in a Postgres
+    integration test. Without --yes it changes nothing and prints what would be deleted.
+    With --yes, shared-area data for the topic is deleted; Word/Phrase shared with
+    another topic is kept and only unlinked, while orphaned Word/Phrase is deleted;
+    the configured test account''s Discovery/LearningState/QuizAttempt rows are cleaned
+    first. If any other user''s data still references the topic, nothing at all is
+    deleted (including test-account data) and the command exits non-zero. Rerunning
+    on a deleted topic exits cleanly, and the topic can then be re-ingested.'
+  semantic_ac_key: ac_cff61a28aa783631
+  verify_command: uv run --directory pipeline pytest -q tests/test_delete_topic.py
+- description: 'A push to main produces this observable pipeline: CI gate, then deploy
+    (Render deploy hook and Vercel deploy), then smoke (/healthz 200 and frontend
+    load, retried for cold starts), then production E2E. If smoke or E2E fails, both
+    Render and Vercel are rolled back to the previous healthy deploy, each attempted
+    independently, with partial failure reported. Secrets come only from GitHub Secrets
+    and never include the production DATABASE_URL. With all secrets missing the deploy
+    jobs warn and show as skipped; with some secrets missing the deploy job fails
+    and names them. Verified by workflow-structure tests plus deploy/smoke/rollback
+    script tests against mocked Render/Vercel HTTP APIs, including timeout and partial-rollback
+    cases'
+  semantic_ac_key: ac_e2467a32dd9ca767
+  verify_command: uv run --directory backend pytest -q tests/test_deploy_workflow.py tests/test_deploy_scripts.py
+  expected_artifacts:
+  - .github/workflows/deploy.yml
+- description: A separate production Playwright smoke spec logs in with an existing
+    test account supplied through env vars (no signup), opens a passage and clicks
+    a word. It passes in the CI e2e job against the local stack with a seeded test
+    account, and the existing local flow E2E still passes unchanged
+  semantic_ac_key: ac_85ae97deab996529
+  verify_command: npx playwright test e2e/prod-smoke.spec.js e2e/flow.spec.js
+  verify_cwd: frontend
+  expected_artifacts:
+  - frontend/e2e/prod-smoke.spec.js
+- description: Sentry error tracking is wired into both the backend and the frontend
+    through a DSN config, and the app still runs unchanged when no DSN is set
+  semantic_ac_key: ac_aefa1dbb404c2b71
+  verify_command: uv run --directory backend pytest -q tests/test_sentry.py
+- description: 'The runbook lets the owner take the system from nothing to production
+    and operate it. It has these sections: Account setup (Render/Vercel/Neon/Sentry/uptime
+    monitor), GitHub Secrets (full list, Neon direct URL), Test account (one-time signup),
+    Monitoring and alerts (uptime check interval, owner-email alerts, Sentry test
+    event), Backup and restore (pg_dump before each ingest, full restore), Deleting
+    a topic (dry-run, --yes, re-ingest), Rollback (automatic app rollback, partial-failure
+    handling, manual alembic downgrade)'
+  semantic_ac_key: ac_75a23222e0feb7ec
+  verify_command: python -c "import re; t=open('docs/runbook.md',encoding='utf-8').read();
+    h=[l.lstrip('#').strip().lower() for l in t.splitlines() if l.startswith('#')];
+    need=['account setup','github secrets','test account','monitoring and alerts','backup
+    and restore','deleting a topic','rollback']; missing=[n for n in need if not any(n
+    in x for x in h)]; assert not missing, missing; print('OK')"
+  expected_artifacts:
+  - docs/runbook.md
+  output_assertion: OK
+- description: 'Blocked on user setup. After the owner creates the accounts and enters
+    the secrets following the runbook, the GitHub Actions run page for one push to
+    main shows the CI, deploy, smoke and production E2E jobs all green (none skipped),
+    and the live backend URL /healthz returns 200'
+  semantic_ac_key: ac_71a47ed444f17964
+  verify_exemption_reason: Blocked on user setup; needs the user's own cloud accounts,
+    GitHub Secrets and a live production run, which no workspace command can decide
+assumptions:
+- Test file paths such as tests/test_delete_topic.py, tests/test_deploy_scripts.py,
+  tests/test_deploy_workflow.py, backend/tests/test_sentry.py and frontend/e2e/prod-smoke.spec.js
+  are assumed. The worker may relocate them to match the repo layout and update the
+  verify commands to match
+- The workflow file is assumed to live at .github/workflows/deploy.yml (or to extend
+  the existing CI workflow)
+- The runbook is assumed to be docs/runbook.md
+- The deploy/smoke/rollback scripts are assumed to be Python and unit-testable with
+  mocked HTTP
+- The production test account is assumed to be identified by a config value such as
+  an email (e.g. a PROD_TEST_ACCOUNT_EMAIL env var)
+- Sentry is assumed to be off (a no-op) when no DSN is configured, so local runs and
+  CI stay unchanged
+- The uptime monitor provider (e.g. UptimeRobot or Better Stack free tier) is left
+  to the worker/runbook
+- The CI Postgres integration test is assumed to run against a Postgres service container
+  and reach it through DATABASE_URL
+- The smoke retry count/interval, HTTP timeout and uptime interval are worker-proposed
+  defaults the owner may adjust
+ontology_schema:
+  name: DeutschTrainerProductionOps
+  description: The deployment and operations model for Deutsch Trainer. It covers
+    hosting targets, the CI-gated deploy pipeline, smoke/E2E checks, rollback, monitoring/alerting,
+    and safe topic deletion over the content and user data model.
+  fields:
+  - name: hosting_targets
+    type: object
+    description: Render free web service (backend), Vercel (frontend), Neon free Postgres
+      (direct URL for migrations)
+    required: true
+  - name: deploy_pipeline
+    type: array
+    description: 'Ordered GitHub Actions stages: CI gate, deploy trigger (Render hook
+      and Vercel), smoke, production E2E, rollback'
+    required: true
+  - name: required_secrets
+    type: array
+    description: 'GitHub Secrets: Render/Vercel API tokens and deploy hook, production
+      URLs, test account email/password, Sentry DSN; never the production DATABASE_URL'
+    required: true
+  - name: secrets_state
+    type: string
+    description: 'all_present (deploy runs), all_missing (deploy jobs warn and show
+      skipped), partial (deploy job fails naming the missing secrets)'
+    required: true
+  - name: smoke_checks
+    type: array
+    description: /healthz 200 and frontend load, retried up to 6 times at 30s intervals
+      by default
+    required: true
+  - name: prod_e2e
+    type: object
+    description: 'Playwright spec: login with the fixed test account, open a passage,
+      click a word'
+    required: true
+  - name: rollback_policy
+    type: object
+    description: Automatic app rollback of Render and Vercel through their APIs, attempted
+      independently with partial failure reported; DB rollback is manual through
+      alembic downgrade or a pg_dump restore
+    required: true
+  - name: monitoring
+    type: object
+    description: Platform logs, /healthz, Sentry for backend and frontend, uptime
+      monitor every 5 min by default; alerts go to the owner's email only
+    required: true
+  - name: topic
+    type: object
+    description: 'Shared-area root: Topic has Passages; Passage has Sentences; Sentence
+      has Tokens and Phrases; Token may reference a Word'
+    required: true
+  - name: word_topic
+    type: array
+    description: Link table between Word and Topic; a Word with another Topic link
+      survives deletion, a Word left without links is an orphan and is deleted
+    required: true
+  - name: user_data
+    type: object
+    description: 'User-area records that reference shared data: Discovery (FK to sentence,
+      passage, token, phrase, word), LearningState (FK to word), QuizAttempt (FK to
+      word, discovery). Each belongs to a User'
+    required: true
+  - name: test_account
+    type: object
+    description: The User identified by the configured test-account email; its user_data
+      is cleaned by delete --topic, and its credentials live in GitHub Secrets
+    required: true
+  - name: delete_topic
+    type: object
+    description: 'Invariants: one transaction; dry-run unless --yes; clean test_account
+      user_data first; refuse entirely (no changes) if any other User''s user_data
+      references the topic; delete the topic''s shared-area rows; unlink shared Words/Phrases;
+      delete orphans; idempotent on rerun'
+    required: true
+evaluation_principles:
+- name: Data safety
+  description: delete --topic must never remove real user data or partially delete;
+    it is transactional, dry-run by default, refusal is atomic and backups are documented
+  weight: 0.25
+- name: Gated deploy correctness
+  description: Deploys happen only after green CI, and a smoke or E2E failure reliably
+    triggers automatic app rollback of both targets with partial failures reported
+  weight: 0.2
+- name: Zero cost and free-tier fit
+  description: Everything stays on free tiers and copes with cold starts
+  weight: 0.15
+- name: Secret hygiene
+  description: No secrets or production DATABASE_URL in the repo or CI; missing secrets
+    lead to a clean, explicit skip and partial secrets to an explicit failure
+  weight: 0.15
+- name: Runbook completeness
+  description: The owner can set up, verify, back up, restore and roll back using
+    the runbook alone
+  weight: 0.15
+- name: Brownfield consistency
+  description: Reuses the existing render.yaml, vercel.json, entrypoint, models and
+    test patterns without breaking existing CI
+  weight: 0.1
+exit_conditions:
+- name: Stub-verified complete
+  description: All code, workflow and runbook deliverables pass their automated checks
+    in CI without real secrets
+  criteria: The delete --topic Postgres integration test, the workflow and mocked-API
+    deploy/rollback tests, the prod spec run against the local stack, the Sentry test
+    and the runbook heading check all pass, and existing CI stays green
+- name: Production verified
+  description: A real main deploy passes the full chain
+  criteria: After the user's account and secret setup, one main push shows CI gate,
+    deploy, smoke and production E2E all green (none skipped) and live /healthz returns
+    200
+- name: Blocked on user setup
+  description: The remaining work needs the user's manual account creation or secret
+    entry
+  criteria: Only the live-production criterion is outstanding, and the deploy jobs
+    show as skipped because secrets are missing
+metadata:
+  seed_id: seed_40bd8d7ddbe4
+  version: 1.1.0
+  created_at: '2026-11-13T17:16:20.419432Z'
+  ambiguity_score: 0.14
+  gate_forced: false
+  interview_id: interview_20261113_163434
+  parent_seed_id: null
+  generation_mode: normal
+  degraded: false
+  unresolved_slots: []
+  recovery_reason: null
+  refinement_passes: 1

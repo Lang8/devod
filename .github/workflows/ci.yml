@@ -26,6 +26,26 @@ jobs:
       - run: uv run pytest -q
         working-directory: backend
 
+  pipeline:
+    # Offline content pipeline tests, including the delete --topic Postgres integration test.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+        working-directory: pipeline
+      - run: uv run pytest -q
+        working-directory: pipeline
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -78,8 +98,16 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      - name: Playwright E2E
+      - name: Seed test account for the production smoke spec
+        run: |
+          curl -sf --max-time 30 -X POST http://localhost:8000/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"email":"prod-smoke@example.com","password":"smoke-test-pass-1"}'
+      - name: Playwright E2E (local flow + production smoke spec against local stack)
         working-directory: frontend
+        env:
+          PROD_E2E_EMAIL: prod-smoke@example.com
+          PROD_E2E_PASSWORD: smoke-test-pass-1
         run: npx playwright test
       - if: failure()
         run: cat api.log

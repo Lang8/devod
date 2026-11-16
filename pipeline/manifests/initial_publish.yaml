@@ -1,0 +1,15 @@
+# Initial production publish: exactly 12 open-tier passages, 2 per CEFR level (A1-C2).
+# Entry keys: kind, ref, topic, level (optional: section). Never use kind: local_file here.
+# Run: python -m deutsch_pipeline ingest-manifest manifests/initial_publish.yaml
+- {kind: wikipedia, ref: "Apfel", topic: essen, level: A1}
+- {kind: wikipedia, ref: "Fahrrad", topic: reisen, level: A1}
+- {kind: wikipedia, ref: "Brot", topic: essen, level: A2}
+- {kind: wikipedia, ref: "Kartoffel", topic: essen, level: A2}
+- {kind: wikipedia, ref: "Recycling", topic: umwelt, level: B1}
+- {kind: wikipedia, ref: "Berlin", topic: reisen, level: B1}
+- {kind: wikipedia, ref: "Klimawandel", topic: umwelt, level: B2}
+- {kind: wikipedia, ref: "Arbeitsmarkt", topic: arbeit, level: B2}
+- {kind: gutenberg, ref: "24249", topic: reisen, level: C1}  # Heine, Die Harzreise (German)
+- {kind: wikipedia, ref: "Globalisierung", topic: arbeit, level: C1}
+- {kind: gutenberg, ref: "22367", topic: arbeit, level: C2}
+- {kind: gutenberg, ref: "2407", topic: reisen, level: C2}

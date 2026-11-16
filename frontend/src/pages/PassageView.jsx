@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { createDiscovery, getPassage } from "../api.js";
 
+function Attribution({ passage: p }) {
+  if (!p.source_title && !p.author && !p.source_url && !p.license) return null;
+  return (
+    <footer className="attribution" data-testid="attribution">
+      {p.source_title && <span>{p.source_title}</span>}
+      {p.author && <span>{" · "}{p.author}</span>}
+      {p.source_url && (
+        <span>{" · "}<a href={p.source_url} rel="noopener noreferrer">{p.source_url}</a></span>
+      )}
+      {p.license && <span>{" · "}{p.license}</span>}
+      {p.adapted && <span>{" · "}<em>adapted</em></span>}
+    </footer>
+  );
+}
+
 export default function PassageView() {
   const { passageId } = useParams();
   const [passage, setPassage] = useState(null);
@@ -59,6 +74,7 @@ export default function PassageView() {
           {shown.has(s.id) && <p className="ko" lang="ko">{s.text_ko}</p>}
         </div>
       ))}
+      <Attribution passage={passage} />
     </>
   );
 }

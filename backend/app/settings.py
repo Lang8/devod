@@ -18,5 +18,10 @@ def cors_origins() -> list[str]:
     return [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 
 
+def sentry_dsn() -> str | None:
+    """Sentry is a no-op unless SENTRY_DSN is set."""
+    return os.environ.get("SENTRY_DSN", "").strip() or None
+
+
 JWT_ALGORITHM = "HS256"
 JWT_TTL_MINUTES = int(os.environ.get("JWT_TTL_MINUTES", "60"))
